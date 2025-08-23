@@ -1,0 +1,1 @@
+// Dummy object target.
