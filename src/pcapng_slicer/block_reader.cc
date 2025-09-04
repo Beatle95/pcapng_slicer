@@ -127,6 +127,7 @@ uint32_t ScopedBlock::Length() const {
 
 std::vector<uint8_t> ScopedBlock::ReadData() {
   assert(block_reader_);
+  assert(!data_read_performed_);
   std::vector<uint8_t> result = block_reader_->ReadBlockData(header_.total_length);
   data_read_performed_ = true;
   return result;
