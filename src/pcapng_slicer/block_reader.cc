@@ -2,19 +2,14 @@
 
 #include <cassert>
 #include <cstdint>
+#include <vector>
 
-constexpr size_t kBlockAlignment = 4;
-constexpr size_t kEmptyBlockSize = 12;
+#include "pcapng_slicer/error.h"
+
+constexpr uint32_t kBlockAlignment = 4;
+constexpr uint32_t kEmptyBlockSize = 12;
 
 namespace pcapng_slicer {
-
-BlockReader::BlockReader(const std::filesystem::path& path) {
-  assert(std::filesystem::exists(path));
-  file_.open(path, std::ios::binary);
-  if (!file_) {
-    state_ = State::kErrorOccured;
-  }
-}
 
 // Block layout.
 //                         1                   2                   3
@@ -29,67 +24,112 @@ BlockReader::BlockReader(const std::filesystem::path& path) {
 //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //    |                      Block Total Length                       |
 //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-std::optional<BlockReader::Block> BlockReader::ReadBlock() {
-  if (state_ != State::kNormal || IsEof()) {
-    return std::nullopt;
-  }
 
-  const std::optional<BlockHeader> header = ReadBlockHeader();
-  if (!header.has_value()) {
-    state_ = State::kErrorOccured;
-    return std::nullopt;
+BlockReader::BlockReader(const std::filesystem::path& path) {
+  if (!std::filesystem::exists(path)) {
+    CloseAndThrow(Error::Type::kFileNotFound);
   }
-
-  if (header->total_length % kBlockAlignment != 0 || header->total_length < kEmptyBlockSize) {
-    state_ = State::kErrorOccured;
-    return std::nullopt;
+  file_.open(path, std::ios::binary);
+  if (!file_) {
+    CloseAndThrow(Error::Type::kUnableToOpenFile);
   }
+}
 
-  static_assert(sizeof(BlockHeader) == 8, "BlockHeader must be 8 bytes long");
-  const size_t block_data_size = header->total_length - kEmptyBlockSize;
-  std::vector<uint8_t> data(block_data_size);
-  file_.read(reinterpret_cast<char*>(data.data()), block_data_size);
-  if (file_.gcount() != block_data_size) {
-    state_ = State::kErrorOccured;
-    return std::nullopt;
+ScopedBlock BlockReader::ReadBlock() {
+  assert(IsValid() && !IsEof());
+  const BlockHeader header = ReadBlockHeader();
+  if (header.total_length % kBlockAlignment != 0 || header.total_length < kEmptyBlockSize) {
+    CloseAndThrow(Error::Type::kInvalidBlockSize);
   }
-
-  uint32_t preamble_size = 0;
-  file_.read(reinterpret_cast<char*>(&preamble_size), sizeof(preamble_size));
-  if (file_.gcount() != sizeof(preamble_size) || preamble_size != header->total_length) {
-    state_ = State::kErrorOccured;
-    return std::nullopt;
-  }
-
-  return Block{header->type, std::move(data)};
+  return ScopedBlock(header, block_position_, *this);
 }
 
 bool BlockReader::IsEof() const { return file_.peek() == std::char_traits<char>::eof(); }
 
-bool BlockReader::IsValid() const { return state_ == State::kNormal; }
+bool BlockReader::IsValid() const { return !!file_; }
+
+BlockHeader BlockReader::ReadBlockHeader() {
+  const auto type = ReadIntegral<uint32_t>();
+  const auto length = ReadIntegral<uint32_t>();
+  return BlockHeader{type, length};
+}
+
+std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
+  static_assert(sizeof(BlockHeader) == 8, "BlockHeader must be 8 bytes long");
+  assert(IsValid() && !IsEof());
+  assert(length >= kEmptyBlockSize);
+
+  const size_t block_data_size = length - kEmptyBlockSize;
+  std::vector<uint8_t> data(block_data_size);
+  file_.read(reinterpret_cast<char*>(data.data()), block_data_size);
+  if (file_.gcount() != block_data_size) {
+    CloseAndThrow(Error::Type::kTruncatedFile);
+  }
+  ValidateTailLength(length);
+
+  return data;
+}
+
+void BlockReader::SkipBlockData(uint32_t length) {
+  assert(IsValid() && !IsEof());
+  const uint32_t block_data_size = length - kEmptyBlockSize;
+  file_.ignore(block_data_size);
+  ValidateTailLength(length);
+}
+
+void BlockReader::ValidateTailLength(uint32_t length) {
+  assert(IsValid() && !IsEof());
+  uint32_t tail_length = 0;
+  file_.read(reinterpret_cast<char*>(&tail_length), sizeof(tail_length));
+  if (file_.gcount() != sizeof(tail_length)) {
+    CloseAndThrow(Error::Type::kTruncatedFile);
+  }
+  if (tail_length != length) {
+    CloseAndThrow(Error::Type::kInvalidBlockSize);
+  }
+}
+
+void BlockReader::CloseAndThrow(Error::Type type) {
+  file_.close();
+  throw Error{type};
+}
 
 template <typename T>
-std::optional<T> BlockReader::ReadIntegral() {
+T BlockReader::ReadIntegral() {
   static_assert(std::is_integral<T>::value, "T must be an integral type");
   assert(!!file_);
 
   T value;
   file_.read(reinterpret_cast<char*>(&value), sizeof(T));
-  return file_.gcount() == sizeof(T) ? std::make_optional(value) : std::nullopt;
+  if (file_.gcount() != sizeof(T)) {
+    CloseAndThrow(Error::Type::kTruncatedFile);
+  }
+  return value;
 }
 
-std::optional<BlockReader::BlockHeader> BlockReader::ReadBlockHeader() {
-  const auto type = ReadIntegral<uint32_t>();
-  if (!type.has_value() || !file_) {
-    return std::nullopt;
-  }
+ScopedBlock::ScopedBlock(BlockHeader header, uint64_t block_position, BlockReader& block_reader)
+    : header_(header), block_position_(block_position), block_reader_(&block_reader) {}
 
-  const auto length = ReadIntegral<uint32_t>();
-  if (!length.has_value() || !file_) {
-    return std::nullopt;
+ScopedBlock::~ScopedBlock() {
+  assert(block_reader_);
+  if (!block_reader_->IsValid()) {
+    return;
   }
+  if (!data_read_performed_) {
+    block_reader_->SkipBlockData(header_.total_length);
+  }
+}
 
-  return BlockHeader{type.value(), length.value()};
+uint32_t ScopedBlock::Length() const {
+  assert(header_.total_length >= kEmptyBlockSize);
+  return header_.total_length - kEmptyBlockSize;
+}
+
+std::vector<uint8_t> ScopedBlock::ReadData() {
+  assert(block_reader_);
+  std::vector<uint8_t> result = block_reader_->ReadBlockData(header_.total_length);
+  data_read_performed_ = true;
+  return result;
 }
 
 }  // namespace pcapng_slicer

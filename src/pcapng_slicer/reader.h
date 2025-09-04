@@ -7,6 +7,7 @@
 
 namespace pcapng_slicer {
 
+class ScopedBlock;
 class BlockReader;
 class Section;
 class Interface;
@@ -18,6 +19,7 @@ class Reader {
     kNotOpened,
     kFileNotFound,
     kFileOpenError,
+    kTruncatedFile,
     kInvalidFormat,
   };
 
@@ -30,15 +32,23 @@ class Reader {
   // This function returns the state of the reader, it will only return false if file is ill
   // formated and we have encountered that damaged section during reading.
   bool IsValid() const;
-  // This function is meant to show more information about an error that was encountered during
-  // reading.
+  // This function is meant to show more information about current state of the reader, it is
+  // intended to get more information about an error occured that was encountered during reading.
   State GetState() const;
 
  private:
-  std::shared_ptr<Section> ParseSectionHeader(std::vector<uint8_t> data);
+  using Sections = std::vector<std::shared_ptr<Section>>;
+
+  std::optional<Packet> ReadPacketImpl();
+  void ParseSectionHeaderIfNeeded(ScopedBlock& block);
+  // TODO
+  // void ParseInterface(std::vector<uint8_t> data);
+  // void ParseSimplePacket(std::vector<uint8_t> data);
+  // void ParseEnchansedPacket(std::vector<uint8_t> data);
+  // void ParseCustomBlock(std::vector<uint8_t> data);
 
   std::unique_ptr<BlockReader> block_reader_;
-  std::shared_ptr<Section> current_section_;
+  Sections sections_;
   State state_ = State::kNotOpened;
 };
 
