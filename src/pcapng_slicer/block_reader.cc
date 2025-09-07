@@ -27,11 +27,11 @@ namespace pcapng_slicer {
 
 BlockReader::BlockReader(const std::filesystem::path& path) {
   if (!std::filesystem::exists(path)) {
-    CloseAndThrow(Error::Type::kFileNotFound);
+    CloseAndThrow(ErrorType::kFileNotFound);
   }
   file_.open(path, std::ios::binary);
   if (!file_) {
-    CloseAndThrow(Error::Type::kUnableToOpenFile);
+    CloseAndThrow(ErrorType::kUnableToOpenFile);
   }
 }
 
@@ -39,7 +39,7 @@ ScopedBlock BlockReader::ReadBlock() {
   assert(IsValid() && !IsEof());
   const BlockHeader header = ReadBlockHeader();
   if (header.total_length % kBlockAlignment != 0 || header.total_length < kEmptyBlockSize) {
-    CloseAndThrow(Error::Type::kInvalidBlockSize);
+    CloseAndThrow(ErrorType::kInvalidBlockSize);
   }
   return ScopedBlock(header, block_position_, *this);
 }
@@ -63,9 +63,10 @@ std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
   std::vector<uint8_t> data(block_data_size);
   file_.read(reinterpret_cast<char*>(data.data()), block_data_size);
   if (file_.gcount() != block_data_size) {
-    CloseAndThrow(Error::Type::kTruncatedFile);
+    CloseAndThrow(ErrorType::kTruncatedFile);
   }
   ValidateTailLength(length);
+  ++block_position_;
 
   return data;
 }
@@ -75,6 +76,7 @@ void BlockReader::SkipBlockData(uint32_t length) {
   const uint32_t block_data_size = length - kEmptyBlockSize;
   file_.ignore(block_data_size);
   ValidateTailLength(length);
+  ++block_position_;
 }
 
 void BlockReader::ValidateTailLength(uint32_t length) {
@@ -82,14 +84,14 @@ void BlockReader::ValidateTailLength(uint32_t length) {
   uint32_t tail_length = 0;
   file_.read(reinterpret_cast<char*>(&tail_length), sizeof(tail_length));
   if (file_.gcount() != sizeof(tail_length)) {
-    CloseAndThrow(Error::Type::kTruncatedFile);
+    CloseAndThrow(ErrorType::kTruncatedFile);
   }
   if (tail_length != length) {
-    CloseAndThrow(Error::Type::kInvalidBlockSize);
+    CloseAndThrow(ErrorType::kInvalidBlockSize);
   }
 }
 
-void BlockReader::CloseAndThrow(Error::Type type) {
+void BlockReader::CloseAndThrow(ErrorType type) {
   file_.close();
   throw Error{type};
 }
@@ -102,7 +104,7 @@ T BlockReader::ReadIntegral() {
   T value;
   file_.read(reinterpret_cast<char*>(&value), sizeof(T));
   if (file_.gcount() != sizeof(T)) {
-    CloseAndThrow(Error::Type::kTruncatedFile);
+    CloseAndThrow(ErrorType::kTruncatedFile);
   }
   return value;
 }

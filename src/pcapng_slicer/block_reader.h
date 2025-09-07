@@ -5,7 +5,7 @@
 #include <fstream>
 #include <vector>
 
-#include "pcapng_slicer/error.h"
+#include "pcapng_slicer/error_type.h"
 
 namespace pcapng_slicer {
 
@@ -57,7 +57,7 @@ class BlockReader {
   std::vector<uint8_t> ReadBlockData(uint32_t length);
   void SkipBlockData(uint32_t length);
   void ValidateTailLength(uint32_t length);
-  void CloseAndThrow(Error::Type type);
+  void CloseAndThrow(ErrorType type);
 
   template <typename T>
   T ReadIntegral();
