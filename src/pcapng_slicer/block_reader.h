@@ -36,7 +36,6 @@ class ScopedBlock {
   uint64_t block_position_;
   BlockHeader header_;
   BlockReader* block_reader_;
-  bool data_read_performed_ = false;
 };
 
 // This class is responsible for reading blocks from a file. It will position itself over the start
@@ -46,6 +45,7 @@ class BlockReader {
  public:
   BlockReader(const std::filesystem::path& path);
 
+  // Warning: reading block while other block is alive is an error.
   ScopedBlock ReadBlock();
   bool IsEof() const;
   bool IsValid() const;
@@ -55,7 +55,7 @@ class BlockReader {
 
   BlockHeader ReadBlockHeader();
   std::vector<uint8_t> ReadBlockData(uint32_t length);
-  void SkipBlockData(uint32_t length);
+  void SkipBlockDataIfInsideBlock(uint32_t length);
   void ValidateTailLength(uint32_t length);
   void CloseAndThrow(ErrorType type);
 
@@ -64,6 +64,7 @@ class BlockReader {
 
   mutable std::ifstream file_;
   uint64_t block_position_ = 0;
+  bool inside_block_ = false;
 };
 
 }  // namespace pcapng_slicer

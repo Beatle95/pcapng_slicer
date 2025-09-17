@@ -37,10 +37,14 @@ BlockReader::BlockReader(const std::filesystem::path& path) {
 
 ScopedBlock BlockReader::ReadBlock() {
   assert(IsValid() && !IsEof());
+  assert(!inside_block_);
+
   const BlockHeader header = ReadBlockHeader();
   if (header.total_length % kBlockAlignment != 0 || header.total_length < kEmptyBlockSize) {
     CloseAndThrow(ErrorType::kInvalidBlockSize);
   }
+
+  inside_block_ = true;
   return ScopedBlock(header, block_position_, *this);
 }
 
@@ -58,6 +62,7 @@ std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
   static_assert(sizeof(BlockHeader) == 8, "BlockHeader must be 8 bytes long");
   assert(IsValid() && !IsEof());
   assert(length >= kEmptyBlockSize);
+  assert(inside_block_);
 
   const size_t block_data_size = length - kEmptyBlockSize;
   std::vector<uint8_t> data(block_data_size);
@@ -65,18 +70,25 @@ std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
   if (file_.gcount() != block_data_size) {
     CloseAndThrow(ErrorType::kTruncatedFile);
   }
+
   ValidateTailLength(length);
   ++block_position_;
+  inside_block_ = false;
 
   return data;
 }
 
-void BlockReader::SkipBlockData(uint32_t length) {
+void BlockReader::SkipBlockDataIfInsideBlock(uint32_t length) {
   assert(IsValid() && !IsEof());
+  if (inside_block_) {
+    return;
+  }
+
   const uint32_t block_data_size = length - kEmptyBlockSize;
   file_.ignore(block_data_size);
   ValidateTailLength(length);
   ++block_position_;
+  inside_block_ = false;
 }
 
 void BlockReader::ValidateTailLength(uint32_t length) {
@@ -92,6 +104,7 @@ void BlockReader::ValidateTailLength(uint32_t length) {
 }
 
 void BlockReader::CloseAndThrow(ErrorType type) {
+  inside_block_ = false;
   file_.close();
   throw Error{type};
 }
@@ -117,9 +130,7 @@ ScopedBlock::~ScopedBlock() {
   if (!block_reader_->IsValid()) {
     return;
   }
-  if (!data_read_performed_) {
-    block_reader_->SkipBlockData(header_.total_length);
-  }
+  block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
 }
 
 uint32_t ScopedBlock::Length() const {
@@ -129,10 +140,7 @@ uint32_t ScopedBlock::Length() const {
 
 std::vector<uint8_t> ScopedBlock::ReadData() {
   assert(block_reader_);
-  assert(!data_read_performed_);
-  std::vector<uint8_t> result = block_reader_->ReadBlockData(header_.total_length);
-  data_read_performed_ = true;
-  return result;
+  return block_reader_->ReadBlockData(header_.total_length);
 }
 
 }  // namespace pcapng_slicer
