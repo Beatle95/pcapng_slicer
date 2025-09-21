@@ -4,6 +4,10 @@ target_sources(
           reader.cc
           block_reader.h
           block_reader.cc
-          packet.h
+          packet_private.h
+          packet_private.cc
           block_types.h
-          error_type.h)
+          error_type.h
+          section_private.h
+          section_private.cc
+          packet.h)

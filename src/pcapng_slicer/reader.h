@@ -8,15 +8,16 @@
 
 namespace pcapng_slicer {
 
-class ScopedBlock;
 class BlockReader;
-class Section;
+class ScopedBlock;
+class SectionPrivate;
 class Interface;
+class PacketPrivate;
 
 class Reader {
  public:
   // Tries to open file and returns true if file was opened successfully. Otherwise returns false
-  // and more context of the error may be retrieved by GetState() function.
+  // and more context of the error may be retrieved by LastError() function.
   bool Open(const std::filesystem::path& path);
   // Try read a packet, the returned value may be nullopt if we have reached the end of the file or
   // reading was imposible because an error has occured.
@@ -25,23 +26,20 @@ class Reader {
   // erroneus state.
   bool IsValid() const;
   // Return last error occured, if there was no error returns ErrorType::kNoError.
-  ErrorType error() const { return last_error_; }
+  ErrorType LastError() const { return last_error_; }
 
  private:
-  using Sections = std::vector<std::shared_ptr<Section>>;
-
   void EnterErrorState(ErrorType error);
 
-  std::optional<Packet> ReadPacketImpl();
-  void ParseSectionHeaderIfNeeded(ScopedBlock& block);
-  // TODO
-  // void ParseInterface(std::vector<uint8_t> data);
-  // void ParseSimplePacket(std::vector<uint8_t> data);
-  // void ParseEnchansedPacket(std::vector<uint8_t> data);
-  // void ParseCustomBlock(std::vector<uint8_t> data);
+  // Reads next block and optionally returns a packet, if this type of block war red.
+  std::unique_ptr<PacketPrivate> ReadNextBlock();
+  void ParseSectionHeader(ScopedBlock& block);
+  void ParseInterface(ScopedBlock& block);
+  std::unique_ptr<PacketPrivate> ParseSimplePacket(ScopedBlock& block);
+  std::unique_ptr<PacketPrivate> ParseEnchansedPacket(ScopedBlock& block);
 
   std::unique_ptr<BlockReader> block_reader_;
-  Sections sections_;
+  std::shared_ptr<SectionPrivate> section_;
   ErrorType last_error_ = ErrorType::kNoError;
 };
 
