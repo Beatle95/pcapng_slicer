@@ -20,6 +20,7 @@ class Interface {
 class Packet {
  public:
   Packet() = default;
+  ~Packet();
   explicit Packet(std::unique_ptr<PacketPrivate> packet_impl);
   
   Packet(const Packet&) = delete;
