@@ -1,10 +1,24 @@
 #include "pcapng_slicer/packet.h"
 
+#include <cassert>
+
 #include "pcapng_slicer/packet_private.h"
 
 namespace pcapng_slicer {
 
-Packet::Packet(std::unique_ptr<PacketPrivate> packet_impl) : packet_impl_(std::move(packet_impl)) {}
+Interface::Interface() = default;
+
+Interface::Interface(std::shared_ptr<InterfacePrivate> interface) {}
+
+Packet::Packet() = default;
+
+Packet::Packet(std::unique_ptr<PacketPrivate> packet_impl) : packet_impl_(std::move(packet_impl)) {
+  assert(packet_impl_);
+}
+
+Packet::Packet(Packet&& other) = default;
+
+Packet& Packet::operator=(Packet&& other) = default;
 
 Packet::~Packet() = default;
 

@@ -10,4 +10,5 @@ target_sources(
           error_type.h
           section_private.h
           section_private.cc
-          packet.h)
+          packet.h
+          packet.cc)

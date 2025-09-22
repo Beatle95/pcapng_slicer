@@ -48,7 +48,10 @@ ScopedBlock BlockReader::ReadBlock() {
   return ScopedBlock(header, block_position_, *this);
 }
 
-bool BlockReader::IsEof() const { return file_.peek() == std::char_traits<char>::eof(); }
+bool BlockReader::IsEof() const {
+  assert(IsValid());
+  return file_.eof() || file_.peek() == std::char_traits<char>::eof();
+}
 
 bool BlockReader::IsValid() const { return !!file_; }
 
@@ -79,8 +82,7 @@ std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
 }
 
 void BlockReader::SkipBlockDataIfInsideBlock(uint32_t length) {
-  assert(IsValid() && !IsEof());
-  if (inside_block_) {
+  if (!IsValid() || IsEof() || !inside_block_) {
     return;
   }
 
@@ -126,8 +128,7 @@ ScopedBlock::ScopedBlock(BlockHeader header, uint64_t block_position, BlockReade
     : header_(header), block_position_(block_position), block_reader_(&block_reader) {}
 
 ScopedBlock::~ScopedBlock() {
-  assert(block_reader_);
-  if (!block_reader_->IsValid()) {
+  if (!block_reader_ || !block_reader_->IsValid()) {
     return;
   }
   block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
@@ -142,5 +143,7 @@ std::vector<uint8_t> ScopedBlock::ReadData() {
   assert(block_reader_);
   return block_reader_->ReadBlockData(header_.total_length);
 }
+
+void ScopedBlock::Reset() { block_reader_ = nullptr; }
 
 }  // namespace pcapng_slicer

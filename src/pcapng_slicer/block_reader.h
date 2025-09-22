@@ -28,6 +28,7 @@ class ScopedBlock {
 
   uint32_t Length() const;
   std::vector<uint8_t> ReadData();
+  void Reset();
 
   uint64_t position() const { return block_position_; }
   uint32_t type() const { return header_.type; }

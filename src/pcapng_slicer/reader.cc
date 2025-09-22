@@ -15,6 +15,7 @@
 #include "pcapng_slicer/section_private.h"
 
 namespace pcapng_slicer {
+
 namespace {
 
 template <typename T>
@@ -26,6 +27,8 @@ uint32_t GetValue(std::span<const uint8_t> data) {
 
 }  // namespace
 
+Reader::~Reader() = default;
+
 bool Reader::Open(const std::filesystem::path& path) {
   try {
     last_error_ = ErrorType::kNoError;
@@ -34,6 +37,8 @@ bool Reader::Open(const std::filesystem::path& path) {
 
     ScopedBlock block = block_reader_->ReadBlock();
     if (block.type() != static_cast<uint32_t>(PcapngBlockType::kSectionHeader)) {
+      // Must reset, because block_reader_ will be invalidated in EnterErrorState().
+      block.Reset();
       EnterErrorState(ErrorType::kFirstBlockIsNotSectionHeader);
       return false;
     }
@@ -53,11 +58,13 @@ std::optional<Packet> Reader::ReadPacket() {
   }
 
   try {
-    std::unique_ptr<PacketPrivate> packet;
     do {
-      packet = ReadNextBlock();
-    } while (!packet && !block_reader_->IsEof() && last_error_ == ErrorType::kNoError);
-    return std::make_optional<Packet>(std::move(packet));
+      std::unique_ptr<PacketPrivate> packet = ReadNextBlock();
+      if (packet) {
+        return std::make_optional<Packet>(std::move(packet));
+      }
+    } while (!block_reader_->IsEof() && last_error_ == ErrorType::kNoError);
+    return std::nullopt;
   } catch (const Error& e) {
     EnterErrorState(e.type());
     return std::nullopt;
@@ -79,7 +86,9 @@ std::unique_ptr<PacketPrivate> Reader::ReadNextBlock() {
       return ParseSimplePacket(block);
     case static_cast<uint32_t>(PcapngBlockType::kEnchancedPacket):
       return ParseEnchansedPacket(block);
-    case static_cast<uint32_t>(PcapngBlockType::kCustomBlock):
+    case static_cast<uint32_t>(PcapngBlockType::kCustomBlock1):
+      [[fallthrough]];
+    case static_cast<uint32_t>(PcapngBlockType::kCustomBlock2):
       return {};
     default:
       // Ignore unkown blocks.
@@ -91,7 +100,7 @@ void Reader::ParseSectionHeader(ScopedBlock& block) {
   auto section = std::make_shared<SectionPrivate>();
   // TODO
   assert(section);
-  section = std::move(section);
+  section_ = std::move(section);
 }
 
 void Reader::ParseInterface(ScopedBlock& block) {
@@ -187,7 +196,7 @@ std::unique_ptr<PacketPrivate> Reader::ParseEnchansedPacket(ScopedBlock& block) 
   packet->original_length = GetValue<uint32_t>(packet_data_slice.subspan(16));
 
   size_t real_length = std::min<size_t>(packet_data_slice.size() - 20,
-                                        std::min(captured_length, packet->interface->GetSnapLen()));
+                                        std::min(captured_length, packet->interface->snap_len()));
   packet->packet_data_slice = packet_data_slice.subspan(20, real_length);
 
   // TODO: Options.

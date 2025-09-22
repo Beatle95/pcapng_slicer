@@ -6,8 +6,8 @@ namespace pcapng_slicer {
 
 class InterfacePrivate {
  public:
-  uint32_t GetLinkType() const;
-  uint32_t GetSnapLen() const;
+  uint32_t ling_type() const { return link_type_;}
+  uint32_t snap_len() const { return snap_len_; }
 
  private:
   uint32_t link_type_;

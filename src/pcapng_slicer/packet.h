@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <span>
 #include <memory>
+
+// TODO
 #include "pcapng_slicer/interface_private.h"
 
 namespace pcapng_slicer {
@@ -13,20 +15,20 @@ class Interface;
 // TODO: Move this class to separate file.
 class Interface {
  public:
-  Interface() = default;
+  Interface();
   explicit Interface(std::shared_ptr<InterfacePrivate> interface);
 };
 
 class Packet {
  public:
-  Packet() = default;
+  Packet();
   ~Packet();
   explicit Packet(std::unique_ptr<PacketPrivate> packet_impl);
   
   Packet(const Packet&) = delete;
   Packet& operator=(const Packet&) = delete;
-  Packet(Packet&&) = delete;
-  Packet& operator=(Packet&&) = delete;
+  Packet(Packet&& other);
+  Packet& operator=(Packet&& other);
 
   Interface GetInterface() const;
   std::span<const uint8_t> GetData() const;
