@@ -27,40 +27,46 @@ uint32_t GetValue(std::span<const uint8_t> data) {
 
 }  // namespace
 
+Reader::Reader() = default;
+
 Reader::~Reader() = default;
+
+Reader::Reader(Reader&& other) = default;
+
+Reader& Reader::operator=(Reader&& other) = default;
 
 bool Reader::Open(const std::filesystem::path& path) {
   try {
-    last_error_ = ErrorType::kNoError;
-    section_.reset();
-    block_reader_ = std::make_unique<BlockReader>(path);
-
-    ScopedBlock block = block_reader_->ReadBlock();
-    if (block.type() != static_cast<uint32_t>(PcapngBlockType::kSectionHeader)) {
-      // Must reset, because block_reader_ will be invalidated in EnterErrorState().
-      block.Reset();
-      EnterErrorState(ErrorType::kFirstBlockIsNotSectionHeader);
-      return false;
-    }
-    ParseSectionHeader(block);
+    OpenImpl(path);
   } catch (const Error& e) {
     EnterErrorState(e.type());
     return false;
   }
-
   assert(section_);
   return true;
+}
+
+void Reader::OpenImpl(const std::filesystem::path& path) {
+  last_error_ = ErrorType::kNoError;
+  section_.reset();
+  block_reader_ = std::make_unique<BlockReader>(path);
+
+  ScopedBlock block = block_reader_->ReadBlock();
+  if (block.type() != static_cast<uint32_t>(PcapngBlockType::kSectionHeader)) {
+    // Must reset, because block_reader_ will be invalidated in EnterErrorState().
+    throw Error(ErrorType::kFirstBlockIsNotSectionHeader);
+  }
+
+  ParseSectionHeader(block);
 }
 
 std::optional<Packet> Reader::ReadPacket() {
   if (!block_reader_ || block_reader_->IsEof()) {
     return std::nullopt;
   }
-
   try {
     do {
-      std::unique_ptr<PacketPrivate> packet = ReadNextBlock();
-      if (packet) {
+      if (std::unique_ptr<PacketPrivate> packet = ReadNextBlock()) {
         return std::make_optional<Packet>(std::move(packet));
       }
     } while (!block_reader_->IsEof() && last_error_ == ErrorType::kNoError);
@@ -78,21 +84,17 @@ std::unique_ptr<PacketPrivate> Reader::ReadNextBlock() {
   switch (block.type()) {
     case static_cast<uint32_t>(PcapngBlockType::kSectionHeader):
       ParseSectionHeader(block);
-      return {};
+      return nullptr;
     case static_cast<uint32_t>(PcapngBlockType::kInterfaceDescription):
       ParseInterface(block);
-      return {};
+      return nullptr;
     case static_cast<uint32_t>(PcapngBlockType::kSimplePacket):
       return ParseSimplePacket(block);
     case static_cast<uint32_t>(PcapngBlockType::kEnchancedPacket):
       return ParseEnchansedPacket(block);
-    case static_cast<uint32_t>(PcapngBlockType::kCustomBlock1):
-      [[fallthrough]];
-    case static_cast<uint32_t>(PcapngBlockType::kCustomBlock2):
-      return {};
     default:
       // Ignore unkown blocks.
-      return {};
+      return nullptr;
   }
 }
 

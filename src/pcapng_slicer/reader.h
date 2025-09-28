@@ -6,9 +6,6 @@
 #include "pcapng_slicer/error_type.h"
 #include "pcapng_slicer/packet.h"
 
-// TODO
-#include "pcapng_slicer/block_reader.h"
-
 namespace pcapng_slicer {
 
 class BlockReader;
@@ -19,7 +16,14 @@ class PacketPrivate;
 
 class Reader {
  public:
+  Reader();
   ~Reader();
+
+  Reader(const Reader&) = delete;
+  Reader& operator=(const Reader&) = delete;
+  Reader(Reader&& other);
+  Reader& operator=(Reader&& other);
+
   // Tries to open file and returns true if file was opened successfully. Otherwise returns false
   // and more context of the error may be retrieved by LastError() function.
   bool Open(const std::filesystem::path& path);
@@ -33,6 +37,7 @@ class Reader {
   ErrorType LastError() const { return last_error_; }
 
  private:
+  void OpenImpl(const std::filesystem::path& path);
   void EnterErrorState(ErrorType error);
 
   // Reads next block and optionally returns a packet, if this type of block war red.

@@ -37,14 +37,12 @@ BlockReader::BlockReader(const std::filesystem::path& path) {
 
 ScopedBlock BlockReader::ReadBlock() {
   assert(IsValid() && !IsEof());
-  assert(!inside_block_);
 
   const BlockHeader header = ReadBlockHeader();
   if (header.total_length % kBlockAlignment != 0 || header.total_length < kEmptyBlockSize) {
     CloseAndThrow(ErrorType::kInvalidBlockSize);
   }
 
-  inside_block_ = true;
   return ScopedBlock(header, block_position_, *this);
 }
 
@@ -56,16 +54,14 @@ bool BlockReader::IsEof() const {
 bool BlockReader::IsValid() const { return !!file_; }
 
 BlockHeader BlockReader::ReadBlockHeader() {
-  const auto type = ReadIntegral<uint32_t>();
-  const auto length = ReadIntegral<uint32_t>();
-  return BlockHeader{type, length};
+  static_assert(sizeof(BlockHeader) == 8, "BlockHeader must be 8 bytes long");
+  BlockHeader result = ReadAs<BlockHeader>();
+  return result;
 }
 
 std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
-  static_assert(sizeof(BlockHeader) == 8, "BlockHeader must be 8 bytes long");
   assert(IsValid() && !IsEof());
   assert(length >= kEmptyBlockSize);
-  assert(inside_block_);
 
   const size_t block_data_size = length - kEmptyBlockSize;
   std::vector<uint8_t> data(block_data_size);
@@ -76,13 +72,12 @@ std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
 
   ValidateTailLength(length);
   ++block_position_;
-  inside_block_ = false;
 
   return data;
 }
 
 void BlockReader::SkipBlockDataIfInsideBlock(uint32_t length) {
-  if (!IsValid() || IsEof() || !inside_block_) {
+  if (!IsValid() || IsEof()) {
     return;
   }
 
@@ -90,7 +85,6 @@ void BlockReader::SkipBlockDataIfInsideBlock(uint32_t length) {
   file_.ignore(block_data_size);
   ValidateTailLength(length);
   ++block_position_;
-  inside_block_ = false;
 }
 
 void BlockReader::ValidateTailLength(uint32_t length) {
@@ -106,14 +100,13 @@ void BlockReader::ValidateTailLength(uint32_t length) {
 }
 
 void BlockReader::CloseAndThrow(ErrorType type) {
-  inside_block_ = false;
   file_.close();
   throw Error{type};
 }
 
 template <typename T>
-T BlockReader::ReadIntegral() {
-  static_assert(std::is_integral<T>::value, "T must be an integral type");
+T BlockReader::ReadAs() {
+  static_assert(std::copy_constructible<T>, "T must be an copyt constructible type");
   assert(!!file_);
 
   T value;
@@ -128,10 +121,9 @@ ScopedBlock::ScopedBlock(BlockHeader header, uint64_t block_position, BlockReade
     : header_(header), block_position_(block_position), block_reader_(&block_reader) {}
 
 ScopedBlock::~ScopedBlock() {
-  if (!block_reader_ || !block_reader_->IsValid()) {
-    return;
+  if (block_reader_ && block_reader_->IsValid()) {
+    block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
   }
-  block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
 }
 
 uint32_t ScopedBlock::Length() const {
@@ -141,7 +133,9 @@ uint32_t ScopedBlock::Length() const {
 
 std::vector<uint8_t> ScopedBlock::ReadData() {
   assert(block_reader_);
-  return block_reader_->ReadBlockData(header_.total_length);
+  auto result = block_reader_->ReadBlockData(header_.total_length);
+  block_reader_ = nullptr;
+  return result;
 }
 
 void ScopedBlock::Reset() { block_reader_ = nullptr; }

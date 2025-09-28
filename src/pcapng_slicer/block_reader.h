@@ -21,6 +21,7 @@ class ScopedBlock {
  public:
   ScopedBlock(BlockHeader header, uint64_t block_position, BlockReader& block_reader);
   ~ScopedBlock();
+
   ScopedBlock(const ScopedBlock&) = delete;
   ScopedBlock& operator=(const ScopedBlock&) = delete;
   ScopedBlock(ScopedBlock&&) = delete;
@@ -46,7 +47,7 @@ class BlockReader {
  public:
   BlockReader(const std::filesystem::path& path);
 
-  // Warning: reading block while other block is alive is an error.
+  // Warning: reading block while other block is alive is UB.
   ScopedBlock ReadBlock();
   bool IsEof() const;
   bool IsValid() const;
@@ -61,11 +62,10 @@ class BlockReader {
   void CloseAndThrow(ErrorType type);
 
   template <typename T>
-  T ReadIntegral();
+  T ReadAs();
 
   mutable std::ifstream file_;
   uint64_t block_position_ = 0;
-  bool inside_block_ = false;
 };
 
 }  // namespace pcapng_slicer

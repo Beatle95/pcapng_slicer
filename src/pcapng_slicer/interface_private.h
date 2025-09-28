@@ -11,7 +11,7 @@ class InterfacePrivate {
 
  private:
   uint32_t link_type_;
-  uint32_t snap_len_;
+  uint32_t snap_len_ = 1'000'000;
 };
 
 }  // namespace pcapng_slicer
