@@ -89,12 +89,8 @@ void BlockReader::SkipBlockDataIfInsideBlock(uint32_t length) {
 
 void BlockReader::ValidateTailLength(uint32_t length) {
   assert(IsValid() && !IsEof());
-  uint32_t tail_length = 0;
-  file_.read(reinterpret_cast<char*>(&tail_length), sizeof(tail_length));
-  if (file_.gcount() != sizeof(tail_length)) {
-    CloseAndThrow(ErrorType::kTruncatedFile);
-  }
-  if (tail_length != length) {
+  uint32_t tail_length = ReadAs<uint32_t>();
+  if (validate_block_length_ && tail_length != length) {
     CloseAndThrow(ErrorType::kInvalidBlockSize);
   }
 }

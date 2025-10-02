@@ -12,16 +12,18 @@ class SectionPrivate {
  public:
   using Interfaces = std::vector<std::shared_ptr<InterfacePrivate>>;
 
-  void PushInterface(std::shared_ptr<InterfacePrivate> interface);
   size_t GetInterfaceCount() const;
+  void PushInterface(std::shared_ptr<InterfacePrivate> interface);
   std::shared_ptr<InterfacePrivate> GetInterface(uint64_t index);
-
-  uint64_t block_position() const { return block_position_; }
   const Interfaces& interfaces() const { return interfaces_; }
+
+  uint64_t block_position;
+  uint64_t section_length;
+  uint32_t version_major;
+  uint32_t version_minor;
 
  private:
   Interfaces interfaces_;
-  uint64_t block_position_;
 };
 
 }  // namespace pcapng_slicer

@@ -20,7 +20,6 @@ namespace {
 
 template <typename T>
 uint32_t GetValue(std::span<const uint8_t> data) {
-  assert(reinterpret_cast<uintptr_t>(data.data()) % 4 == 0);
   assert(data.size() >= sizeof(T));
   return *reinterpret_cast<const uint32_t*>(&data[0]);
 }
@@ -98,18 +97,77 @@ std::unique_ptr<PacketPrivate> Reader::ReadNextBlock() {
   }
 }
 
+//                         1                   2                   3
+//     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//  0 |                   Block Type = 0x0A0D0D0A                     |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//  4 |                      Block Total Length                       |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//  8 |                      Byte-Order Magic                         |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// 12 |          Major Version        |         Minor Version         |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// 16 |                                                               |
+//    |                       Section Length                          |
+//    |                                                               |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// 24 /                                                               /
+//    /                      Options (variable)                       /
+//    /                                                               /
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |                      Block Total Length                       |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 void Reader::ParseSectionHeader(ScopedBlock& block) {
+  const auto data = block.ReadData();
+  std::span<const uint8_t> data_slice(data);
+  if (data_slice.size() < 4 * sizeof(uint32_t)) {
+    throw Error(ErrorType::kInvalidBlockSize);
+  }
+
   auto section = std::make_shared<SectionPrivate>();
-  // TODO
-  assert(section);
+  section->block_position = block.position();
+  section->version_major = GetValue<uint16_t>(data_slice.subspan(4));
+  section->version_minor = GetValue<uint16_t>(data_slice.subspan(6));
+  section->section_length = GetValue<uint32_t>(data_slice.subspan(8));
+
+  // TODO: Parse options.
+
   section_ = std::move(section);
 }
 
+//                         1                   2                   3
+//     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//  0 |                    Block Type = 0x00000001                    |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//  4 |                      Block Total Length                       |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//  8 |           LinkType            |           Reserved            |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// 12 |                            SnapLen                            |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// 16 /                                                               /
+//    /                      Options (variable)                       /
+//    /                                                               /
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |                      Block Total Length                       |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 void Reader::ParseInterface(ScopedBlock& block) {
   assert(section_);
+  const auto data = block.ReadData();
+  std::span<const uint8_t> data_slice(data);
+  if (data_slice.size() < 2 * sizeof(uint32_t)) { 
+    throw Error(ErrorType::kInvalidBlockSize);
+  }
+
   auto interface = std::make_shared<InterfacePrivate>();
-  // TODO
-  assert(interface);
+  interface->block_position = block.position();
+  interface->link_type = GetValue<uint16_t>(data_slice);
+  interface->snap_len = GetValue<uint32_t>(data_slice.subspan(4));
+  
+  // TODO: Parse options.
+
   section_->PushInterface(std::move(interface));
 }
 
@@ -198,7 +256,7 @@ std::unique_ptr<PacketPrivate> Reader::ParseEnchansedPacket(ScopedBlock& block) 
   packet->original_length = GetValue<uint32_t>(packet_data_slice.subspan(16));
 
   size_t real_length = std::min<size_t>(packet_data_slice.size() - 20,
-                                        std::min(captured_length, packet->interface->snap_len()));
+                                        std::min(captured_length, packet->interface->snap_len));
   packet->packet_data_slice = packet_data_slice.subspan(20, real_length);
 
   // TODO: Options.

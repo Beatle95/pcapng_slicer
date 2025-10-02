@@ -66,6 +66,7 @@ class BlockReader {
 
   mutable std::ifstream file_;
   uint64_t block_position_ = 0;
+  bool validate_block_length_ = false;
 };
 
 }  // namespace pcapng_slicer
