@@ -1,4 +1,4 @@
-#include "pcapng_slicer/section_private.h"
+#include "section_private.h"
 
 #include <cassert>
 

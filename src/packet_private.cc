@@ -1,4 +1,4 @@
-#include "pcapng_slicer/packet_private.h"
+#include "packet_private.h"
 
 #include <cassert>
 #include <cstdint>

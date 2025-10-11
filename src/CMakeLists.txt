@@ -1,19 +1,14 @@
 target_sources(
   ${PROJECT_NAME}
-  PRIVATE reader.h
-          reader.cc
+  PRIVATE reader.cc
           block_reader.h
           block_reader.cc
           packet_private.h
           packet_private.cc
           block_types.h
-          error_type.h
           section_private.h
           section_private.cc
-          packet.h
           packet.cc
-          options.h
           options.cc
-          interface.h
           interface.cc
           interface_private.h)

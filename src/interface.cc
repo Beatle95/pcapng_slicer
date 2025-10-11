@@ -1,7 +1,7 @@
 #include "pcapng_slicer/interface.h"
 #include <span>
 
-#include "pcapng_slicer/interface_private.h"
+#include "interface_private.h"
 
 constexpr size_t kOptionsOffset = 2 * sizeof(uint32_t);
 

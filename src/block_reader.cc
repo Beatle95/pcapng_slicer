@@ -1,10 +1,10 @@
-#include "pcapng_slicer/block_reader.h"
+#include "block_reader.h"
 
 #include <cassert>
 #include <cstdint>
 #include <vector>
 
-#include "pcapng_slicer/error.h"
+#include "error.h"
 
 constexpr uint32_t kBlockAlignment = 4;
 constexpr uint32_t kEmptyBlockSize = 12;

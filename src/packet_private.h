@@ -5,7 +5,7 @@
 #include <span>
 #include <vector>
 
-#include "pcapng_slicer/interface_private.h"
+#include "interface_private.h"
 #include "pcapng_slicer/options.h"
 
 namespace pcapng_slicer {

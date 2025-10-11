@@ -6,13 +6,13 @@
 #include <optional>
 #include <vector>
 
-#include "pcapng_slicer/block_reader.h"
-#include "pcapng_slicer/block_types.h"
-#include "pcapng_slicer/error.h"
+#include "block_reader.h"
+#include "block_types.h"
+#include "error.h"
+#include "interface_private.h"
+#include "packet_private.h"
 #include "pcapng_slicer/error_type.h"
-#include "pcapng_slicer/interface_private.h"
-#include "pcapng_slicer/packet_private.h"
-#include "pcapng_slicer/section_private.h"
+#include "section_private.h"
 
 namespace pcapng_slicer {
 
