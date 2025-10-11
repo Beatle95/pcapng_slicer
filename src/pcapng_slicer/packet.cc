@@ -6,10 +6,6 @@
 
 namespace pcapng_slicer {
 
-Interface::Interface() = default;
-
-Interface::Interface(std::shared_ptr<InterfacePrivate> interface) {}
-
 Packet::Packet() = default;
 
 Packet::Packet(std::unique_ptr<PacketPrivate> packet_impl) : packet_impl_(std::move(packet_impl)) {
@@ -31,5 +27,9 @@ uint32_t Packet::GetOriginalLength() const { return packet_impl_->GetOriginalLen
 uint64_t Packet::GetTimestamp() const { return packet_impl_->GetTimestamp(); }
 
 bool Packet::IsValid() const { return !!packet_impl_; }
+
+Options Packet::ParseOptions() const {
+  return packet_impl_ ? packet_impl_->ParseOptions() : Options{};
+}
 
 }  // namespace pcapng_slicer

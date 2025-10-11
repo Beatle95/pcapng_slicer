@@ -119,19 +119,18 @@ std::unique_ptr<PacketPrivate> Reader::ReadNextBlock() {
 //    |                      Block Total Length                       |
 //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 void Reader::ParseSectionHeader(ScopedBlock& block) {
-  const auto data = block.ReadData();
-  std::span<const uint8_t> data_slice(data);
+  auto section = std::make_shared<SectionPrivate>();
+  section->data = block.ReadData();
+
+  std::span<const uint8_t> data_slice(section->data);
   if (data_slice.size() < 4 * sizeof(uint32_t)) {
     throw Error(ErrorType::kInvalidBlockSize);
   }
 
-  auto section = std::make_shared<SectionPrivate>();
   section->block_position = block.position();
   section->version_major = GetValue<uint16_t>(data_slice.subspan(4));
   section->version_minor = GetValue<uint16_t>(data_slice.subspan(6));
-  section->section_length = GetValue<uint32_t>(data_slice.subspan(8));
-
-  // TODO: Parse options.
+  section->section_length = GetValue<uint64_t>(data_slice.subspan(8));
 
   section_ = std::move(section);
 }
@@ -155,19 +154,18 @@ void Reader::ParseSectionHeader(ScopedBlock& block) {
 //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 void Reader::ParseInterface(ScopedBlock& block) {
   assert(section_);
-  const auto data = block.ReadData();
-  std::span<const uint8_t> data_slice(data);
+  auto interface = std::make_shared<InterfacePrivate>();
+  interface->data = block.ReadData();
+
+  std::span<const uint8_t> data_slice(interface->data);
   if (data_slice.size() < 2 * sizeof(uint32_t)) { 
     throw Error(ErrorType::kInvalidBlockSize);
   }
 
-  auto interface = std::make_shared<InterfacePrivate>();
   interface->block_position = block.position();
   interface->link_type = GetValue<uint16_t>(data_slice);
   interface->snap_len = GetValue<uint32_t>(data_slice.subspan(4));
   
-  // TODO: Parse options.
-
   section_->PushInterface(std::move(interface));
 }
 
@@ -238,7 +236,7 @@ std::unique_ptr<PacketPrivate> Reader::ParseEnchansedPacket(ScopedBlock& block) 
   packet->data = block.ReadData();
 
   std::span<const uint8_t> packet_data_slice(packet->data);
-  if (packet_data_slice.size() < sizeof(uint32_t) * 5) {
+  if (packet_data_slice.size() < EnchansedPacketPrivate::kRequiredSize) {
     throw Error(ErrorType::kInvalidBlockSize);
   }
 
@@ -255,11 +253,13 @@ std::unique_ptr<PacketPrivate> Reader::ParseEnchansedPacket(ScopedBlock& block) 
   const uint32_t captured_length = GetValue<uint32_t>(packet_data_slice.subspan(12));
   packet->original_length = GetValue<uint32_t>(packet_data_slice.subspan(16));
 
-  size_t real_length = std::min<size_t>(packet_data_slice.size() - 20,
-                                        std::min(captured_length, packet->interface->snap_len));
-  packet->packet_data_slice = packet_data_slice.subspan(20, real_length);
-
-  // TODO: Options.
+  size_t real_length =
+      std::min<size_t>(packet_data_slice.size() - EnchansedPacketPrivate::kRequiredSize,
+                       std::min(captured_length, packet->interface->snap_len));
+  packet->packet_data_slice =
+      packet_data_slice.subspan(EnchansedPacketPrivate::kRequiredSize, real_length);
+  packet->options_data_slice =
+      packet_data_slice.subspan(EnchansedPacketPrivate::kRequiredSize + real_length);
 
   return packet;
 }

@@ -11,4 +11,9 @@ target_sources(
           section_private.h
           section_private.cc
           packet.h
-          packet.cc)
+          packet.cc
+          options.h
+          options.cc
+          interface.h
+          interface.cc
+          interface_private.h)

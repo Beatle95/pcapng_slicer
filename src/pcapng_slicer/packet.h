@@ -1,23 +1,15 @@
 #pragma once
 
 #include <cstdint>
-#include <span>
 #include <memory>
+#include <span>
 
-// TODO
-#include "pcapng_slicer/interface_private.h"
+#include "pcapng_slicer/interface.h"
 
 namespace pcapng_slicer {
 
 class PacketPrivate;
 class Interface;
-
-// TODO: Move this class to separate file.
-class Interface {
- public:
-  Interface();
-  explicit Interface(std::shared_ptr<InterfacePrivate> interface);
-};
 
 class Packet {
  public:
@@ -35,6 +27,8 @@ class Packet {
   uint32_t GetOriginalLength() const;
   uint64_t GetTimestamp() const;
   bool IsValid() const;
+
+  Options ParseOptions() const;
 
  private:
   std::unique_ptr<PacketPrivate> packet_impl_;
