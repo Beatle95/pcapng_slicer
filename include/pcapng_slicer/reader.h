@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "pcapng_slicer/error_type.h"
+#include "pcapng_slicer/export.h"
 #include "pcapng_slicer/packet.h"
 
 namespace pcapng_slicer {
@@ -14,7 +15,7 @@ class SectionPrivate;
 class Interface;
 class PacketPrivate;
 
-class Reader {
+class PCAPNG_SLICER_EXPORT Reader {
  public:
   Reader();
   ~Reader();

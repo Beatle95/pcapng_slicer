@@ -2,13 +2,14 @@
 
 #include <memory>
 
+#include "pcapng_slicer/export.h"
 #include "pcapng_slicer/options.h"
 
 namespace pcapng_slicer {
 
 class InterfacePrivate;
 
-class Interface {
+class PCAPNG_SLICER_EXPORT Interface {
  public:
   Interface();
   ~Interface();

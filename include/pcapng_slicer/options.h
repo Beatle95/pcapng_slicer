@@ -4,6 +4,8 @@
 #include <span>
 #include <vector>
 
+#include "pcapng_slicer/export.h"
+
 namespace pcapng_slicer {
 
 struct Option {
@@ -17,7 +19,7 @@ struct CustomOption {
   uint16_t code;
 };
 
-class Options {
+class PCAPNG_SLICER_EXPORT Options {
  public:
   Options();
   explicit Options(std::span<const uint8_t> data);

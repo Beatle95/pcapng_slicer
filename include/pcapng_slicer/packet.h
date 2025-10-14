@@ -4,6 +4,7 @@
 #include <memory>
 #include <span>
 
+#include "pcapng_slicer/export.h"
 #include "pcapng_slicer/interface.h"
 
 namespace pcapng_slicer {
@@ -11,7 +12,7 @@ namespace pcapng_slicer {
 class PacketPrivate;
 class Interface;
 
-class Packet {
+class PCAPNG_SLICER_EXPORT Packet {
  public:
   Packet();
   ~Packet();
