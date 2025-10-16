@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "error.h"
@@ -114,12 +115,16 @@ T BlockReader::ReadAs() {
 }
 
 ScopedBlock::ScopedBlock(BlockHeader header, uint64_t block_position, BlockReader& block_reader)
-    : header_(header), block_position_(block_position), block_reader_(&block_reader) {}
+    : header_(header), block_position_(block_position), block_reader_(&block_reader) {
+  assert(!std::exchange(block_reader_->has_scoped_block_, true) &&
+         "Only one instanec of ScopedBlock for a single BlockReader is allowed");
+}
 
 ScopedBlock::~ScopedBlock() {
   if (block_reader_ && block_reader_->IsValid()) {
     block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
   }
+  assert(std::exchange(block_reader_->has_scoped_block_, false));
 }
 
 uint32_t ScopedBlock::Length() const {
@@ -129,11 +134,11 @@ uint32_t ScopedBlock::Length() const {
 
 std::vector<uint8_t> ScopedBlock::ReadData() {
   assert(block_reader_);
-  auto result = block_reader_->ReadBlockData(header_.total_length);
-  block_reader_ = nullptr;
+  std::vector<uint8_t> result = block_reader_->ReadBlockData(header_.total_length);
+  PreventPostReading();
   return result;
 }
 
-void ScopedBlock::Reset() { block_reader_ = nullptr; }
+void ScopedBlock::PreventPostReading() { block_reader_ = nullptr; }
 
 }  // namespace pcapng_slicer

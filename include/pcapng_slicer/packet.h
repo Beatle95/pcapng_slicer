@@ -31,6 +31,8 @@ class PCAPNG_SLICER_EXPORT Packet {
 
   Options ParseOptions() const;
 
+  operator bool() const;
+
  private:
   std::unique_ptr<PacketPrivate> packet_impl_;
 };

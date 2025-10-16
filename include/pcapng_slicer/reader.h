@@ -29,7 +29,8 @@ class PCAPNG_SLICER_EXPORT Reader {
   // and more context of the error may be retrieved by LastError() function.
   bool Open(const std::filesystem::path& path);
   // Try read a packet, the returned value may be nullopt if we have reached the end of the file or
-  // reading was imposible because an error has occured.
+  // reading was imposible because an error has occured. If result is non-nullopt, then the packet
+  // is guaranteed to be valid.
   std::optional<Packet> ReadPacket();
   // This function returns true if Open was successfully called and the Reader hasn't entered an
   // erroneus state.

@@ -29,7 +29,7 @@ class ScopedBlock {
 
   uint32_t Length() const;
   std::vector<uint8_t> ReadData();
-  void Reset();
+  void PreventPostReading();
 
   uint64_t position() const { return block_position_; }
   uint32_t type() const { return header_.type; }
@@ -47,7 +47,7 @@ class BlockReader {
  public:
   BlockReader(const std::filesystem::path& path);
 
-  // Warning: reading block while other block is alive is UB.
+  // Warning: reading block while other block is alive is en error.
   ScopedBlock ReadBlock();
   bool IsEof() const;
   bool IsValid() const;
@@ -67,6 +67,10 @@ class BlockReader {
   mutable std::ifstream file_;
   uint64_t block_position_ = 0;
   bool validate_block_length_ = false;
+
+#ifndef NDEBUG
+  bool has_scoped_block_ = false;
+#endif
 };
 
 }  // namespace pcapng_slicer

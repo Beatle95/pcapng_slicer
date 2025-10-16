@@ -18,18 +18,40 @@ Packet& Packet::operator=(Packet&& other) = default;
 
 Packet::~Packet() = default;
 
-Interface Packet::GetInterface() const { return Interface(packet_impl_->GetInterface()); }
+Interface Packet::GetInterface() const {
+  if (!packet_impl_) {
+    return Interface();
+  }
+  return Interface(packet_impl_->GetInterface());
+}
 
-std::span<const uint8_t> Packet::GetData() const { return packet_impl_->GetData(); }
+std::span<const uint8_t> Packet::GetData() const {
+  if (!packet_impl_) {
+    return {};
+  }
+  return packet_impl_->GetData();
+}
 
-uint32_t Packet::GetOriginalLength() const { return packet_impl_->GetOriginalLength(); }
+uint32_t Packet::GetOriginalLength() const {
+  if (!packet_impl_) {
+    return -1;
+  }
+  return packet_impl_->GetOriginalLength();
+}
 
-uint64_t Packet::GetTimestamp() const { return packet_impl_->GetTimestamp(); }
+uint64_t Packet::GetTimestamp() const {
+  if (!packet_impl_) {
+    return -1;
+  }
+  return packet_impl_->GetTimestamp();
+}
 
 bool Packet::IsValid() const { return !!packet_impl_; }
 
 Options Packet::ParseOptions() const {
   return packet_impl_ ? packet_impl_->ParseOptions() : Options{};
 }
+
+Packet::operator bool() const { return IsValid(); }
 
 }  // namespace pcapng_slicer
