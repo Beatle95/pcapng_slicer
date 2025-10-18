@@ -16,7 +16,9 @@ struct BlockHeader {
   uint32_t total_length;
 };
 
-// Block must never outlive it's BlockReader.
+// Scoped block represents a single block of pcapng file, the reading of a block body is deferred
+// until it is needed. If body reading isn't necessary then the body reading will be skipped. It
+// must never outlive it's BlockReader.
 class ScopedBlock {
  public:
   ScopedBlock(BlockHeader header, uint64_t block_position, BlockReader& block_reader);

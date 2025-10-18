@@ -38,6 +38,7 @@ BlockReader::BlockReader(const std::filesystem::path& path) {
 
 ScopedBlock BlockReader::ReadBlock() {
   assert(IsValid() && !IsEof());
+  assert(!has_scoped_block_);
 
   const BlockHeader header = ReadBlockHeader();
   if (header.total_length % kBlockAlignment != 0 || header.total_length < kEmptyBlockSize) {
@@ -117,14 +118,14 @@ T BlockReader::ReadAs() {
 ScopedBlock::ScopedBlock(BlockHeader header, uint64_t block_position, BlockReader& block_reader)
     : header_(header), block_position_(block_position), block_reader_(&block_reader) {
   assert(!std::exchange(block_reader_->has_scoped_block_, true) &&
-         "Only one instanec of ScopedBlock for a single BlockReader is allowed");
+         "Only one instance of ScopedBlock for a single BlockReader is allowed");
 }
 
 ScopedBlock::~ScopedBlock() {
+  assert(!block_reader_ || std::exchange(block_reader_->has_scoped_block_, false));
   if (block_reader_ && block_reader_->IsValid()) {
     block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
   }
-  assert(std::exchange(block_reader_->has_scoped_block_, false));
 }
 
 uint32_t ScopedBlock::Length() const {
@@ -139,6 +140,9 @@ std::vector<uint8_t> ScopedBlock::ReadData() {
   return result;
 }
 
-void ScopedBlock::PreventPostReading() { block_reader_ = nullptr; }
+void ScopedBlock::PreventPostReading() {
+  assert(!block_reader_ || std::exchange(block_reader_->has_scoped_block_, false));
+  block_reader_ = nullptr;
+}
 
 }  // namespace pcapng_slicer
