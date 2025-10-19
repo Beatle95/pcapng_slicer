@@ -11,6 +11,7 @@ enum class ErrorType {
   kTruncatedFile,
   kInvalidBlockSize,
   kInvalidInterfaceForPacket,
+  kInvalidOptionSize,
 };
 
 }  // namespace pcapng_slicer

@@ -12,19 +12,10 @@
 #include "interface_private.h"
 #include "packet_private.h"
 #include "pcapng_slicer/error_type.h"
+#include "read_utils.h"
 #include "section_private.h"
 
 namespace pcapng_slicer {
-
-namespace {
-
-template <typename T>
-uint32_t GetValue(std::span<const uint8_t> data) {
-  assert(data.size() >= sizeof(T));
-  return *reinterpret_cast<const uint32_t*>(&data[0]);
-}
-
-}  // namespace
 
 Reader::Reader() = default;
 
@@ -128,9 +119,9 @@ void Reader::ParseSectionHeader(ScopedBlock& block) {
   }
 
   section->block_position = block.position();
-  section->version_major = GetValue<uint16_t>(data_slice.subspan(4));
-  section->version_minor = GetValue<uint16_t>(data_slice.subspan(6));
-  section->section_length = GetValue<uint64_t>(data_slice.subspan(8));
+  section->version_major = CastValue<uint16_t>(data_slice.subspan(4));
+  section->version_minor = CastValue<uint16_t>(data_slice.subspan(6));
+  section->section_length = CastValue<uint64_t>(data_slice.subspan(8));
 
   section_ = std::move(section);
 }
@@ -163,8 +154,8 @@ void Reader::ParseInterface(ScopedBlock& block) {
   }
 
   interface->block_position = block.position();
-  interface->link_type = GetValue<uint16_t>(data_slice);
-  interface->snap_len = GetValue<uint32_t>(data_slice.subspan(4));
+  interface->link_type = CastValue<uint16_t>(data_slice);
+  interface->snap_len = CastValue<uint32_t>(data_slice.subspan(4));
   
   section_->PushInterface(std::move(interface));
 }
@@ -198,7 +189,7 @@ std::unique_ptr<PacketPrivate> Reader::ParseSimplePacket(ScopedBlock& block) {
   if (packet->data.size() < sizeof(uint32_t)) {
     throw Error(ErrorType::kInvalidBlockSize);
   }
-  packet->original_length = GetValue<uint32_t>(packet->data);
+  packet->original_length = CastValue<uint32_t>(packet->data);
   return packet;
 }
 
@@ -240,26 +231,26 @@ std::unique_ptr<PacketPrivate> Reader::ParseEnchansedPacket(ScopedBlock& block) 
     throw Error(ErrorType::kInvalidBlockSize);
   }
 
-  const auto iface_id = GetValue<uint32_t>(packet_data_slice);
+  const auto iface_id = CastValue<uint32_t>(packet_data_slice);
   if (iface_id >= section_->GetInterfaceCount()) {
     throw Error(ErrorType::kInvalidInterfaceForPacket);
   }
   packet->interface = section_->GetInterface(iface_id);
 
-  uint64_t timestamp_high = GetValue<uint32_t>(packet_data_slice.subspan(4));
-  uint64_t timestamp_low = GetValue<uint32_t>(packet_data_slice.subspan(8));
+  uint64_t timestamp_high = CastValue<uint32_t>(packet_data_slice.subspan(4));
+  uint64_t timestamp_low = CastValue<uint32_t>(packet_data_slice.subspan(8));
   packet->timestamp = (timestamp_high << 32 | timestamp_low);
 
-  const uint32_t captured_length = GetValue<uint32_t>(packet_data_slice.subspan(12));
-  packet->original_length = GetValue<uint32_t>(packet_data_slice.subspan(16));
+  const uint32_t captured_length = CastValue<uint32_t>(packet_data_slice.subspan(12));
+  packet->original_length = CastValue<uint32_t>(packet_data_slice.subspan(16));
 
   size_t real_length =
       std::min<size_t>(packet_data_slice.size() - EnchansedPacketPrivate::kRequiredSize,
                        std::min(captured_length, packet->interface->snap_len));
   packet->packet_data_slice =
       packet_data_slice.subspan(EnchansedPacketPrivate::kRequiredSize, real_length);
-  packet->options_data_slice =
-      packet_data_slice.subspan(EnchansedPacketPrivate::kRequiredSize + real_length);
+  packet->options_data_slice = packet_data_slice.subspan(
+      EnchansedPacketPrivate::kRequiredSize + real_length + GetPaddingToOctet(real_length));
 
   return packet;
 }
