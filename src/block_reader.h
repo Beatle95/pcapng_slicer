@@ -59,8 +59,8 @@ class BlockReader {
 
   BlockHeader ReadBlockHeader();
   std::vector<uint8_t> ReadBlockData(uint32_t length);
-  void SkipBlockDataIfInsideBlock(uint32_t length);
-  void ValidateTailLength(uint32_t length);
+  void SkipBlockData(uint32_t length);
+  void ValidateTailLengthIfNeeded(uint32_t length);
   void CloseAndThrow(ErrorType type);
 
   template <typename T>

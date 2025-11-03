@@ -72,27 +72,32 @@ std::vector<uint8_t> BlockReader::ReadBlockData(uint32_t length) {
     CloseAndThrow(ErrorType::kTruncatedFile);
   }
 
-  ValidateTailLength(length);
+  ValidateTailLengthIfNeeded(length);
   ++block_position_;
 
   return data;
 }
 
-void BlockReader::SkipBlockDataIfInsideBlock(uint32_t length) {
+void BlockReader::SkipBlockData(uint32_t length) {
   if (!IsValid() || IsEof()) {
     return;
   }
 
   const uint32_t block_data_size = length - kEmptyBlockSize;
   file_.ignore(block_data_size);
-  ValidateTailLength(length);
+  ValidateTailLengthIfNeeded(length);
   ++block_position_;
 }
 
-void BlockReader::ValidateTailLength(uint32_t length) {
+void BlockReader::ValidateTailLengthIfNeeded(uint32_t length) {
   assert(IsValid() && !IsEof());
-  uint32_t tail_length = ReadAs<uint32_t>();
-  if (validate_block_length_ && tail_length != length) {
+  if (!validate_block_length_) {
+    file_.ignore(sizeof(uint32_t));
+    return;
+  }
+
+  const uint32_t tail_length = ReadAs<uint32_t>();
+  if (tail_length != length) {
     CloseAndThrow(ErrorType::kInvalidBlockSize);
   }
 }
@@ -124,7 +129,7 @@ ScopedBlock::ScopedBlock(BlockHeader header, uint64_t block_position, BlockReade
 ScopedBlock::~ScopedBlock() {
   assert(!block_reader_ || std::exchange(block_reader_->has_scoped_block_, false));
   if (block_reader_ && block_reader_->IsValid()) {
-    block_reader_->SkipBlockDataIfInsideBlock(header_.total_length);
+    block_reader_->SkipBlockData(header_.total_length);
   }
 }
 

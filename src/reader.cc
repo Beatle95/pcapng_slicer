@@ -1,7 +1,9 @@
 #include "pcapng_slicer/reader.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -156,6 +158,9 @@ void Reader::ParseInterface(ScopedBlock& block) {
   interface->block_position = block.position();
   interface->link_type = CastValue<uint16_t>(data_slice);
   interface->snap_len = CastValue<uint32_t>(data_slice.subspan(4));
+  if (interface->snap_len == 0) {
+    interface->snap_len = std::numeric_limits<uint32_t>::max();
+  }
   
   section_->PushInterface(std::move(interface));
 }
@@ -189,7 +194,13 @@ std::unique_ptr<PacketPrivate> Reader::ParseSimplePacket(ScopedBlock& block) {
   if (packet->data.size() < sizeof(uint32_t)) {
     throw Error(ErrorType::kInvalidBlockSize);
   }
+
   packet->original_length = CastValue<uint32_t>(packet->data);
+  if (std::min(packet->original_length, packet->interface->snap_len) >
+      packet->data.size() - sizeof(uint32_t)) {
+    throw Error(ErrorType::kInvalidBlockSize);
+  }
+
   return packet;
 }
 
@@ -242,15 +253,15 @@ std::unique_ptr<PacketPrivate> Reader::ParseEnchansedPacket(ScopedBlock& block) 
   packet->timestamp = (timestamp_high << 32 | timestamp_low);
 
   const uint32_t captured_length = CastValue<uint32_t>(packet_data_slice.subspan(12));
-  packet->original_length = CastValue<uint32_t>(packet_data_slice.subspan(16));
+  if (captured_length > packet_data_slice.size() - EnchansedPacketPrivate::kRequiredSize) {
+    throw Error(ErrorType::kInvalidBlockSize);
+  }
 
-  size_t real_length =
-      std::min<size_t>(packet_data_slice.size() - EnchansedPacketPrivate::kRequiredSize,
-                       std::min(captured_length, packet->interface->snap_len));
+  packet->original_length = CastValue<uint32_t>(packet_data_slice.subspan(16));
   packet->packet_data_slice =
-      packet_data_slice.subspan(EnchansedPacketPrivate::kRequiredSize, real_length);
+      packet_data_slice.subspan(EnchansedPacketPrivate::kRequiredSize, captured_length);
   packet->options_data_slice = packet_data_slice.subspan(
-      EnchansedPacketPrivate::kRequiredSize + real_length + GetPaddingToOctet(real_length));
+      EnchansedPacketPrivate::kRequiredSize + captured_length + GetPaddingToOctet(captured_length));
 
   return packet;
 }

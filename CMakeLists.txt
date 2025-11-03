@@ -16,6 +16,7 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}"
 # Library build options.
 option(PCAPNG_SLICER_INSTALL "Generate target for installing pcapng_slicer"
        ${is_top_level})
+option(PCAPNG_SLICER_BUILD_TESTS "Build pcapng_slicer tests" OFF)
 set_if_undefined(
   PCAPNG_SLICER_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/pcapng_slicer"
   CACHE STRING "Install path for pcapng_slicer package-related CMake files")
@@ -61,6 +62,11 @@ target_include_directories(
 
 add_subdirectory(include)
 add_subdirectory(src)
+
+# Enable tests if requested
+if(PCAPNG_SLICER_BUILD_TESTS)
+  add_subdirectory(tests)
+endif()
 
 # Installation.
 if(PCAPNG_SLICER_INSTALL AND NOT CMAKE_SKIP_INSTALL_RULES)

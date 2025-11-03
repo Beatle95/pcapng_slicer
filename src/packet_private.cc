@@ -14,8 +14,12 @@ uint32_t SimplePacketPrivate::GetOriginalLength() const { return original_length
 uint64_t SimplePacketPrivate::GetTimestamp() const { return 0; }
 
 std::span<const uint8_t> SimplePacketPrivate::GetData() const {
-  assert(data.size() >= sizeof(uint32_t));
-  return std::span<const uint8_t>(data.begin() + sizeof(uint32_t), data.end());
+  assert(interface);
+
+  const auto real_length = std::min(original_length, interface->snap_len);
+  assert(data.size() >= real_length + sizeof(uint32_t));
+
+  return std::span<const uint8_t>(data.begin() + sizeof(uint32_t), real_length);
 }
 
 std::shared_ptr<InterfacePrivate> EnchansedPacketPrivate::GetInterface() const { return interface; }
