@@ -1,6 +1,7 @@
 target_sources(
   ${PROJECT_NAME}
   PRIVATE reader.cc
+          writer.cc
           block_reader.h
           block_reader.cc
           packet_private.h

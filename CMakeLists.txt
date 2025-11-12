@@ -63,7 +63,7 @@ target_include_directories(
 add_subdirectory(include)
 add_subdirectory(src)
 
-# Enable tests if requested
+# Enable tests if requested.
 if(PCAPNG_SLICER_BUILD_TESTS)
   add_subdirectory(tests)
 endif()

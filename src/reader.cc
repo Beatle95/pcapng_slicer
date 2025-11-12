@@ -53,9 +53,13 @@ void Reader::OpenImpl(const std::filesystem::path& path) {
 }
 
 std::optional<Packet> Reader::ReadPacket() {
-  if (!block_reader_ || block_reader_->IsEof()) {
+  if (!block_reader_ && last_error_ == ErrorType::kNoError) {
+    last_error_ = ErrorType::kFileWasClosed;
+  }
+  if (last_error_ != ErrorType::kNoError || !block_reader_ || block_reader_->IsEof()) {
     return std::nullopt;
   }
+
   try {
     do {
       if (std::unique_ptr<PacketPrivate> packet = ReadNextBlock()) {
