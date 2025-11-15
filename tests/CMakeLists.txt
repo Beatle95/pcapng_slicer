@@ -2,6 +2,7 @@ enable_testing()
 
 # Generate test config file.
 set(PCAPNG_SLICER_TEST_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
+set(PCAPNG_SLICER_TEST_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 configure_file(test_config.h.in test_config.h @ONLY)
 
 function(create_pcapng_test test_name)

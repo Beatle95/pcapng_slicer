@@ -1,7 +1,7 @@
-#include <stdexcept>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include <filesystem>
+#include <stdexcept>
 #include <vector>
 
 #include "doctest.h"
@@ -14,7 +14,7 @@ using namespace pcapng_slicer;
 
 namespace {
 
-const auto kTestOutputDir = std::filesystem::path(kTestResourcesDirPath) / "output";
+const auto kTestOutputDir = std::filesystem::path(kTestOutputDirPath) / "test_output";
 
 class TestDirectoryManager {
  public:
@@ -47,7 +47,8 @@ class TestDirectoryManager {
   std::filesystem::path dir_path_;
 };
 
-std::vector<uint8_t> CreatePacketData(int packet_size) {
+std::vector<uint8_t> CreatePacketData(int packet_number) {
+  const int packet_size = (packet_number + 1) % 100;
   std::vector<uint8_t> data(packet_size);
   for (int i = 0; i < packet_size; ++i) {
     data[i] = static_cast<uint8_t>(i % 256);
@@ -57,66 +58,59 @@ std::vector<uint8_t> CreatePacketData(int packet_size) {
 
 void VerifyWrittenPacket(const Packet& packet, int packet_number) {
   const auto data = packet.GetData();
-  const int expected_size = packet_number + 1;
+  const int expected_size = (packet_number + 1) % 100;
   CHECK_EQ(data.size(), expected_size);
 
   for (int i = 0; i < data.size(); ++i) {
     CHECK_EQ(data[i], static_cast<uint8_t>(i % 256));
   }
-
   CHECK_EQ(packet.GetOriginalLength(), expected_size);
 }
 
 }  // namespace
 
 TEST_CASE("Writing packets without options") {
+  constexpr int kTotalPacketsCount = 500;
   TestDirectoryManager manager(kTestOutputDir);
-  const auto test_file = kTestOutputDir / "write_test_no_options.pcapng";
+  const std::filesystem::path test_file = kTestOutputDir / "write_test_no_options.pcapng";
 
   Writer writer;
   REQUIRE(writer.Open(test_file));
+  CHECK(writer.IsValid());
 
-  // Write 10 packets of increasing size
-  for (int i = 0; i < 10; ++i) {
-    auto packet_data = CreatePacketData(i + 1);
+  for (int i = 0; i < kTotalPacketsCount; ++i) {
+    std::vector<uint8_t> packet_data = CreatePacketData(i);
     REQUIRE(writer.WritePacket(packet_data));
+    CHECK(writer.IsValid());
   }
 
   writer.Close();
-  CHECK(writer.IsValid());
+  CHECK_FALSE(writer.IsValid());
 
-  // Now verify the written file can be read correctly
+  // Now verify the written file can be read correctly.
   Reader reader;
   REQUIRE(reader.Open(test_file));
-
-  for (int i = 0; i < 10; ++i) {
-    auto packet = reader.ReadPacket();
-    REQUIRE(packet.has_value());
-    VerifyWrittenPacket(*packet, i);
-  }
-
-  CHECK_FALSE(reader.ReadPacket().has_value());
   CHECK(reader.IsValid());
 
-  // Clean up test file
-  std::filesystem::remove(test_file);
+  for (int i = 0; i < kTotalPacketsCount; ++i) {
+    auto packet = reader.ReadPacket();
+    REQUIRE_MESSAGE(packet.has_value(), std::format("Loop index was: {}", i));
+    VerifyWrittenPacket(*packet, i);
+  }
+  CHECK_FALSE(reader.ReadPacket().has_value());
 }
 
 TEST_CASE("Writing empty packet") {
   TestDirectoryManager manager(kTestOutputDir);
-  const auto test_file = kTestOutputDir / "write_test_empty_packet.pcapng";
+  const std::filesystem::path test_file = kTestOutputDir / "write_test_empty_packet.pcapng";
 
   Writer writer;
   REQUIRE(writer.Open(test_file));
-
-  // Write an empty packet
   std::vector<uint8_t> empty_packet;
   REQUIRE(writer.WritePacket(empty_packet));
-
   writer.Close();
-  CHECK(writer.IsValid());
 
-  // Verify the written file can be read correctly
+  // Verify the written file can be read correctly.
   Reader reader;
   REQUIRE(reader.Open(test_file));
 
@@ -126,47 +120,11 @@ TEST_CASE("Writing empty packet") {
   CHECK_EQ(packet->GetOriginalLength(), 0);
 
   CHECK_FALSE(reader.ReadPacket().has_value());
-  CHECK(reader.IsValid());
-
-  // Clean up test file
-  std::filesystem::remove(test_file);
-}
-
-TEST_CASE("Writing multiple packets") {
-  TestDirectoryManager manager(kTestOutputDir);
-  const auto test_file = kTestOutputDir / "write_test_multiple_packets.pcapng";
-
-  Writer writer;
-  REQUIRE(writer.Open(test_file));
-
-  // Write 100 packets
-  for (int i = 0; i < 100; ++i) {
-    auto packet_data = CreatePacketData(i + 1);
-    REQUIRE(writer.WritePacket(packet_data));
-  }
-
-  writer.Close();
-  CHECK(writer.IsValid());
-
-  // Verify all packets can be read correctly
-  Reader reader;
-  REQUIRE(reader.Open(test_file));
-
-  for (int i = 0; i < 100; ++i) {
-    auto packet = reader.ReadPacket();
-    REQUIRE(packet.has_value());
-    VerifyWrittenPacket(*packet, i);
-  }
-
-  CHECK_FALSE(reader.ReadPacket().has_value());
-  CHECK(reader.IsValid());
-
-  // Clean up test file
-  std::filesystem::remove(test_file);
 }
 
 TEST_CASE("Writing to non-existent directory fails") {
-  const auto test_file = std::filesystem::path("/non/existent/directory") / "test.pcapng";
+  TestDirectoryManager manager(kTestOutputDir);
+  const std::filesystem::path test_file = kTestOutputDir / "non_existing_dir/test.pcapng";
 
   Writer writer;
   CHECK_FALSE(writer.Open(test_file));
@@ -179,19 +137,13 @@ TEST_CASE("Writing after closing file fails") {
 
   Writer writer;
   REQUIRE(writer.Open(test_file));
-
-  // Write one packet
   auto packet_data = CreatePacketData(10);
   REQUIRE(writer.WritePacket(packet_data));
 
-  // Close the file
   writer.Close();
 
-  // Try to write another packet - should fail
+  // Try to write another packet after closing writer - should fail.
   auto packet_data2 = CreatePacketData(20);
   CHECK_FALSE(writer.WritePacket(packet_data2));
-  CHECK_EQ(writer.LastError(), ErrorType::kWriteError);
-
-  // Clean up test file
-  std::filesystem::remove(test_file);
+  CHECK_EQ(writer.LastError(), ErrorType::kFileWasClosed);
 }

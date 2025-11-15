@@ -8,5 +8,6 @@
 namespace pcapng_slicer {
 
 constexpr std::string_view kTestResourcesDirPath = "@PCAPNG_SLICER_TEST_RESOURCES_DIR@";
+constexpr std::string_view kTestOutputDirPath = "@PCAPNG_SLICER_TEST_OUTPUT_DIR@";
 
 }  // namespace pcapng_slicer

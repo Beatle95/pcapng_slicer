@@ -152,7 +152,7 @@ void Writer::WriteSimplePacket(std::span<const uint8_t> packet_data) {
   const uint32_t block_type = static_cast<uint32_t>(PcapngBlockType::kSimplePacket);
   const uint32_t original_length = packet_data.size();
   const uint32_t padding = GetPaddingToOctet(packet_data.size());
-  const uint32_t block_total_length = 3 * sizeof(uint32_t) + packet_data.size() + padding;
+  const uint32_t block_total_length = 4 * sizeof(uint32_t) + packet_data.size() + padding;
 
   file_.write(reinterpret_cast<const char*>(&block_type), sizeof(block_type));
   file_.write(reinterpret_cast<const char*>(&block_total_length), sizeof(block_total_length));

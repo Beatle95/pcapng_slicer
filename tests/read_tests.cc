@@ -1,7 +1,7 @@
-#include <string>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include <filesystem>
+#include <string>
 
 #include "doctest.h"
 #include "pcapng_slicer/packet.h"
@@ -47,6 +47,8 @@ void VerifyPacket(const Packet& packet, int packet_number, bool has_options) {
 }
 
 }  // namespace
+
+// TODO: Reading non-opened file returns error.
 
 TEST_CASE("Reading without options") {
   Reader reader;

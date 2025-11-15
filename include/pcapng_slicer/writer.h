@@ -38,7 +38,7 @@ class PCAPNG_SLICER_EXPORT Writer {
   // function.
   bool WritePacket(std::span<const uint8_t> packet_data);
 
-  // This function returns true if Create was successfully called and the Writer hasn't entered an
+  // This function returns true if Open was successfully called and the Writer hasn't entered an
   // erroneous state.
   bool IsValid() const;
 
